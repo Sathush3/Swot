@@ -157,12 +157,6 @@ def upload_test():
             weaknessess = sum(df['classified'].apply(lambda w: weak_string(w)))
             threats = sum(df['classified'].apply(lambda t: threat_string(t)))
             total = len(df.index)
-            a = '''The strength are {}
-            The opportunities are {}
-            The weakness are {}
-            The Threats are{}
-            total is {}'''.format(strenths, opportunities, weaknessess, threats, total)
-
             return jsonify(
                 strength=strenths,
                 opportunity=opportunities,
