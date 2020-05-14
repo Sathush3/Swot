@@ -170,6 +170,8 @@ def upload_test():
                 threat=threats,
                 totals=total
             )
+         else:
+            return "file format error please upload CSV file"
 
 
 if __name__ == '__main__':
