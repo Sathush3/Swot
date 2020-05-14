@@ -8,13 +8,19 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.neighbors import KNeighborsClassifier
 import nltk
+from flask_cors import CORS
+import pymongo
+import bcrypt as bcrypt
 
 nltk.download('stopwords')
 
 app = Flask(__name__)
+cors = CORS(app)
 UPLOAD_FOLDER = 'G:\FYP'
 ALLOWED_EXTENSIONS = {'csv'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
 
 @app.route('/')
@@ -43,9 +49,16 @@ def login():
         email_login = req_data['email']
     if 'password' in req_data:
         password_login = req_data['password']
+    db = myclient["Swot"]
+    users = db["users"]
+    login_user = users.find_one({'email': email_login})
+    if login_user:
+        if bcrypt.hashpw(password_login.encode('utf-8'), login_user['password']) == login_user['password']:
+            return 'login success'
+        else:
+            return 'Invalid password '
 
-    process = "login success "
-    return process
+    return 'Invalid username/password combination'
 
 
 @app.route('/user/signup/', methods=['POST'])
@@ -56,11 +69,27 @@ def signup():
     req_data_1 = request.get_json()
     if 'email' in req_data_1:
         email_signup = req_data_1['email']
+    else:
+        return 'no email'
     if 'name' in req_data_1:
         name_signup = req_data_1['name']
+    else:
+        return 'no name'
+
     if 'password' in req_data_1:
         password_signup = req_data_1['password']
-    return 'sign up success'
+    else:
+        return 'no pass'
+
+    db = myclient["Swot"]
+    users = db["users"]
+    existing_user = users.find_one({'email': email_signup})
+    if existing_user is None:
+        hashpass = bcrypt.hashpw(password_signup.encode('utf-8'), bcrypt.gensalt())
+        users.insert({'name': name_signup, 'email': email_signup, 'password': hashpass})
+        return 'sign up success'
+    else:
+        return 'user already exists'
 
 
 @app.route('/user/forgot/')
@@ -77,22 +106,22 @@ def allowed_file(filename):
 @app.route('/upload/', methods=['POST'])
 def upload_test():
     if request.method == 'POST':
-        file = request.files['file'] 
+        file = request.files['file']
         # submit an empty part without filename will show error
         if file.filename == '':
             return 'error no selected file'
-        
-        #save files with secure name to avoid unnecessary access leak
+
+        # save files with secure name to avoid unnecessary access leak
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            #passing the data to predict
+            # passing the data to predict
             data = pd.read_csv(filename)
             df = pd.DataFrame(data, columns=['review'], dtype=str)
             path = pd.read_csv(r'processed_youtubeMusic_labelled.csv')
             df_train = pd.DataFrame(path, columns=['review'], dtype=str)
-            
-            #trainign model
+
+            # trainign model
             train_sentences = []
             for i, row in df_train.iterrows():
                 train_sentences.append(df_train['review'].loc[i])
@@ -108,7 +137,7 @@ def upload_test():
 
             modelknn = KNeighborsClassifier(n_neighbors=5)
             modelknn.fit(X, y_train)
-            #output
+            # output
             test_sentences = []
             for i, row in df.iterrows():
                 test_sentences.append(df['review'].loc[i])
@@ -121,11 +150,11 @@ def upload_test():
             z = []
             for i, row in df.iterrows():
                 z.append((true_test_labels[np.int(predicted_labels_knn[i])]))
-            #writting results to a casv
+            # writting results to a casv
             df['classified'] = z
             df.to_csv("results.csv")
-            
-            #returning values 
+
+            # returning values
             def str_string(classified_reviews):
                 if 'Strength' in classified_reviews:
                     return True
@@ -164,7 +193,7 @@ def upload_test():
                 threat=threats,
                 totals=total
             )
-         else:
+        else:
             return "file format error please upload CSV file"
 
 
