@@ -8,6 +8,7 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.neighbors import KNeighborsClassifier
 import nltk
+
 nltk.download('stopwords')
 
 app = Flask(__name__)
@@ -29,6 +30,8 @@ def test(user_login):
         return redirect(url_for('signup'))
     elif user_login == 'forgot':
         return redirect(url_for('forgot'))
+    elif user_login == 'upload':
+        return redirect(url_for('upload'))
 
 
 @app.route('/user/login/', methods=['POST'])
@@ -40,7 +43,9 @@ def login():
         email_login = req_data['email']
     if 'password' in req_data:
         password_login = req_data['password']
-    return render_template('login.html', email=email_login, password=password_login)
+
+    process = "login success "
+    return process
 
 
 @app.route('/user/signup/', methods=['POST'])
@@ -55,9 +60,8 @@ def signup():
         name_signup = req_data_1['name']
     if 'password' in req_data_1:
         password_signup = req_data_1['password']
-
-    return render_template('signup.html', name=name_signup, email=email_signup, password=password_signup)
-
+    return 'sign up success'
+    
 
 @app.route('/user/forgot/')
 def forgot():
@@ -70,117 +74,101 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@app.route('/upload/', methods=['GET', 'POST'])
-def upload_file():
+@app.route('/upload/', methods=['POST'])
+def upload_test():
     if request.method == 'POST':
-        # check if the post request has the file part
-        if 'file' not in request.files:
-            flash('No file part')
-            return redirect(request.url)
         file = request.files['file']
         # if user does not select file, browser also
         # submit an empty part without filename
         if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
+            # flash('No selected file')
+            return 'error no selected file'
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            return redirect(url_for('upload_file',
-                                    filename=filename))
+            data = pd.read_csv(filename)
+            df = pd.DataFrame(data, columns=['review'], dtype=str)
 
+            path = pd.read_csv(r'processed_youtubeMusic_labelled.csv')
+            df_train = pd.DataFrame(path, columns=['review'], dtype=str)
 
-@app.route('/upload/test/', methods=['POST'])
-def upload_test():
-    file = request.files['file']
-    data = pd.read_csv(file)
-    df = pd.DataFrame(data, columns=['review'], dtype=str)
+            train_sentences = []
+            for i, row in df_train.iterrows():
+                train_sentences.append(df_train['review'].loc[i])
 
-    path = pd.read_csv(r'processed_youtubeMusic_labelled.csv')
-    df_train = pd.DataFrame(path, columns=['review'], dtype=str)
+            vectorizer = TfidfVectorizer(stop_words='english')
+            X = vectorizer.fit_transform(train_sentences)
 
-    # stop = set(stopwords.words('english'))
-    # exclude = set(string.punctuation)
-    # lemma = WordNetLemmatizer()
+            y_train = np.zeros(257)
+            y_train[0:88] = 0
+            y_train[89:143] = 1
+            y_train[144:199] = 2
+            y_train[200:257] = 3
 
-    train_sentences = []
-    for i, row in df_train.iterrows():
-        train_sentences.append(df_train['review'].loc[i])
+            modelknn = KNeighborsClassifier(n_neighbors=5)
+            modelknn.fit(X, y_train)
 
-    vectorizer = TfidfVectorizer(stop_words='english')
-    X = vectorizer.fit_transform(train_sentences)
+            test_sentences = []
+            for i, row in df.iterrows():
+                test_sentences.append(df['review'].loc[i])
 
-    y_train = np.zeros(257)
-    y_train[0:88] = 0
-    y_train[89:143] = 1
-    y_train[144:199] = 2
-    y_train[200:257] = 3
+            Test = vectorizer.transform(test_sentences)
 
-    modelknn = KNeighborsClassifier(n_neighbors=5)
-    modelknn.fit(X, y_train)
+            true_test_labels = ['Strength', 'Opportunity', 'Weakness', 'Threat']
+            predicted_labels_knn = modelknn.predict(Test)
 
-    test_sentences = []
-    for i, row in df.iterrows():
-        test_sentences.append(df['review'].loc[i])
+            z = []
+            for i, row in df.iterrows():
+                z.append((true_test_labels[np.int(predicted_labels_knn[i])]))
 
-    Test = vectorizer.transform(test_sentences)
+            df['classified'] = z
+            df.to_csv("results.csv")
 
-    true_test_labels = ['Strength', 'Opportunity', 'Weakness', 'Threat']
-    predicted_labels_knn = modelknn.predict(Test)
+            def str_string(classified_reviews):
+                if 'Strength' in classified_reviews:
+                    return True
+                else:
+                    return False
 
-    z = []
-    for i, row in df.iterrows():
-        z.append((true_test_labels[np.int(predicted_labels_knn[i])]))
+            def opp_string(classified_reviews):
+                if 'Opportunity' in classified_reviews:
+                    return True
+                else:
+                    return False
 
-    df['classified'] = z
-    df.to_csv("results.csv")
+            def weak_string(classified_reviews):
+                if 'Weakness' in classified_reviews:
+                    return True
+                else:
+                    return False
 
-    def str_string(classified_reviews):
-        if 'Strength' in classified_reviews:
-            return True
-        else:
-            return False
+            def threat_string(classified_reviews):
+                if 'Threat' in classified_reviews:
+                    return True
+                else:
+                    return False
 
-    def opp_string(classified_reviews):
-        if 'Opportunity' in classified_reviews:
-            return True
-        else:
-            return False
+            print("check results.csv for clusters")
+            print(df['classified'].value_counts())
+            strenths = sum(df['classified'].apply(lambda x: str_string(x)))
+            opportunities = sum(df['classified'].apply(lambda y: opp_string(y)))
+            weaknessess = sum(df['classified'].apply(lambda w: weak_string(w)))
+            threats = sum(df['classified'].apply(lambda t: threat_string(t)))
+            total = len(df.index)
+            a = '''The strength are {}
+            The opportunities are {}
+            The weakness are {}
+            The Threats are{}
+            total is {}'''.format(strenths, opportunities, weaknessess, threats, total)
 
-    def weak_string(classified_reviews):
-        if 'Weakness' in classified_reviews:
-            return True
-        else:
-            return False
-
-    def threat_string(classified_reviews):
-        if 'Threat' in classified_reviews:
-            return True
-        else:
-            return False
-
-    print("check results.csv for clusters")
-    print(df['classified'].value_counts())
-    strenths = sum(df['classified'].apply(lambda x: str_string(x)))
-    opportunities = sum(df['classified'].apply(lambda y: opp_string(y)))
-    weaknessess = sum(df['classified'].apply(lambda w: weak_string(w)))
-    threats = sum(df['classified'].apply(lambda t: threat_string(t)))
-    total = len(df.index)
-    a = '''The strength are {}
-    The opportunities are {}
-    The weakness are {}
-    The Threats are{}
-    total is {}'''.format(strenths, opportunities, weaknessess, threats, total)
-
-    return jsonify(
-        strength=strenths,
-        opportunity=opportunities,
-        weaknes=weaknessess,
-        threat=threats,
-        totals=total
-    )
+            return jsonify(
+                strength=strenths,
+                opportunity=opportunities,
+                weaknes=weaknessess,
+                threat=threats,
+                totals=total
+            )
 
 
 if __name__ == '__main__':
-
     app.run()
