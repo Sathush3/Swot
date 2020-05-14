@@ -61,7 +61,7 @@ def signup():
     if 'password' in req_data_1:
         password_signup = req_data_1['password']
     return 'sign up success'
-    
+
 
 @app.route('/user/forgot/')
 def forgot():
@@ -77,21 +77,22 @@ def allowed_file(filename):
 @app.route('/upload/', methods=['POST'])
 def upload_test():
     if request.method == 'POST':
-        file = request.files['file']
-        # if user does not select file, browser also
-        # submit an empty part without filename
+        file = request.files['file'] 
+        # submit an empty part without filename will show error
         if file.filename == '':
-            # flash('No selected file')
             return 'error no selected file'
+        
+        #save files with secure name to avoid unnecessary access leak
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            #passing the data to predict
             data = pd.read_csv(filename)
             df = pd.DataFrame(data, columns=['review'], dtype=str)
-
             path = pd.read_csv(r'processed_youtubeMusic_labelled.csv')
             df_train = pd.DataFrame(path, columns=['review'], dtype=str)
-
+            
+            #trainign model
             train_sentences = []
             for i, row in df_train.iterrows():
                 train_sentences.append(df_train['review'].loc[i])
@@ -107,7 +108,7 @@ def upload_test():
 
             modelknn = KNeighborsClassifier(n_neighbors=5)
             modelknn.fit(X, y_train)
-
+            #output
             test_sentences = []
             for i, row in df.iterrows():
                 test_sentences.append(df['review'].loc[i])
@@ -120,10 +121,11 @@ def upload_test():
             z = []
             for i, row in df.iterrows():
                 z.append((true_test_labels[np.int(predicted_labels_knn[i])]))
-
+            #writting results to a casv
             df['classified'] = z
             df.to_csv("results.csv")
-
+            
+            #returning values 
             def str_string(classified_reviews):
                 if 'Strength' in classified_reviews:
                     return True
