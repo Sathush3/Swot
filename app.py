@@ -1,5 +1,6 @@
 import os
 from flask import Flask, render_template, flash, jsonify
+from flask import send_file, send_from_directory, safe_join, abort
 from flask import redirect, url_for
 from flask import request
 from werkzeug.utils import secure_filename
@@ -19,6 +20,7 @@ cors = CORS(app)
 UPLOAD_FOLDER = 'G:\FYP'
 ALLOWED_EXTENSIONS = {'csv'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config["CLIENT_CSV"] = UPLOAD_FOLDER
 
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 
@@ -195,6 +197,16 @@ def upload_test():
             )
         else:
             return "file format error please upload CSV file"
+
+
+@app.route('/download/')
+def download(filename):
+    filename = 'results.csv'
+    #filename = f"{filename}.csv"
+    try:
+        return send_from_directory(app.config["CLIENT_CSV"], filename=filename, as_attachment=True)
+    except FileNotFoundError:
+        abort(404)
 
 
 if __name__ == '__main__':
