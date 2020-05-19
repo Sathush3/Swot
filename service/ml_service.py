@@ -16,6 +16,20 @@ def ml(filename):
     path = pd.read_csv(r'processed_youtubeMusic_labelled.csv')
     df_train = pd.DataFrame(path, columns=['review'], dtype=str)
 
+    def pos_String(inputs):
+        if 'Positive' in inputs:
+            return True
+        else:
+            return False
+
+    def neg_string(inputs):
+        if 'Negative' in inputs:
+            return True
+        else:
+            return False
+
+    positives = sum(data['score_vader'].apply(lambda a: pos_String(a)))
+    negatives = sum(data['score_vader'].apply(lambda b: neg_string(b)))
     # trainign model
     train_sentences = []
     for i, row in df_train.iterrows():
@@ -81,7 +95,6 @@ def ml(filename):
     opportunities = sum(df['classified'].apply(lambda y: opp_string(y)))
     weaknessess = sum(df['classified'].apply(lambda w: weak_string(w)))
     threats = sum(df['classified'].apply(lambda t: threat_string(t)))
-    total = len(df.index)
-    #print(strenths,weaknessess,threats,opportunities,total)
-    return strenths, opportunities, weaknessess, threats, total
+    total = len(df.index) 
+    return strenths, opportunities, weaknessess, threats,positives,negatives, total
 
