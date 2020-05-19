@@ -1,10 +1,6 @@
-import os
-import zipfile
-
-from flask import Flask, request, jsonify, send_from_directory, send_file
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_mail import Mail
-import glob
 
 import service.user_service as userService
 from service import ml_service, upload_service
@@ -252,18 +248,20 @@ def upload_test(id):
             if request.method == 'POST':
                 file = request.files['file']
                 filename = upload_service.file_save(file, id)
-                strenths, opportunities, weaknessess, threats, total = ml_service.ml(filename)
+                strenths, opportunities, weaknessess, threats,positives,negatives, total = ml_service.ml(filename)
                 # print(output)
                 response = {
                     'Strength': strenths,
                     'Opportunity': opportunities,
                     'Weakness': weaknessess,
                     'Threats': threats,
+                    'Positives':positives,
+                    'Negatives':negatives,
                     'Total': total
                 }
 
         else:
-            raise Exception("User not active")
+           raise Exception("User not active")
     except Exception as e:
 
         response = {
